@@ -6,10 +6,11 @@ import datetime
 import matplotlib.pyplot as plt
 
 
-# Fetch GM stock data for the last 100 days
+# Fetch GM stock data for the last 365 days
 end_date = datetime.date.today()
 start_date = end_date - datetime.timedelta(days=365)
-gm_data = yf.download("GM", start=start_date, end=end_date)
+gm_data = yf.download("GM", start=start_date, end=end_date).dropna()
+
 
 # Plot GM stock data
 gm_data["Close"].plot(figsize=(10, 6))
@@ -19,7 +20,7 @@ plt.ylabel("Close Price")
 plt.grid(True)
 plt.show()
 
-
+#################################################################################################
 # %% SEASONAL MANN-KENDALL TEST
 
 
@@ -39,15 +40,19 @@ for line in acf.lines:
     line.set_linewidth(0.5)
 plt.show()
 
-
+#################################################################################################
 # %% SEASONAL DECOMPOSITION
 
 # Libraries
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# Seasonal decomposition for 365 period
+# Seasonal decomposition and drop NaN from the results
 result = seasonal_decompose(gm_data["Close"], model="additive", period=12)
+gm_data["Trend"] = result.trend.dropna()
+gm_data["Seasonal"] = result.seasonal.dropna()
+gm_data["Residual"] = result.resid.dropna()
+gm_data.dropna(inplace=True)  # Drop rows with NaN values
 
 # Visualize decompositions
 plt.figure(figsize=(12, 8))
@@ -70,3 +75,27 @@ plt.legend(loc="upper left")
 
 # Display the plots
 plt.show()
+
+#################################################################################################
+# %% SARIMA TEST
+
+import numpy as np
+import statsmodels.api as sm
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+import matplotlib.pyplot as plt
+
+
+# Define train and test data
+train_size = int(len(gm_data) * 0.7)
+train = gm_data["Close"][:train_size]
+test = gm_data["Close"][train_size:]
+
+# Fit the SARIMA model | order(p,d,q)
+sarima_model = sm.tsa.statespace.SARIMAX(
+    train, trend="n", order=(1, 1, 0), seasonal_order=(0, 1, 0, 60)
+)
+
+# Print SARIMAX results
+results = sarima_model.fit()
+print(results.summary())
